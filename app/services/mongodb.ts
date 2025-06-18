@@ -56,6 +56,29 @@ type PremiumResponse = {
   totalAnnual: number;
 };
 
+// Define type for saved premium calculation
+type SavedCalculation = {
+  id: string;
+  name: string;
+  userId: string;
+  age: number;
+  gender: string;
+  sumAssured: number;
+  term: number;
+  result: {
+    premium: number;
+    frequency: string;
+    totalAnnual: number;
+  };
+  policyId: string;
+  categoryId: string;
+  policyName: string;
+  createdAt: string;
+};
+
+// Maximum number of saved premium calculations allowed per user
+const MAX_SAVED_PREMIUMS = 6;
+
 // Mock data for policies
 const mockPolicies: PolicyCategories = {
   endowment: [
@@ -121,6 +144,23 @@ class MongoDBService {
     try {
       if (this.initialized) return;
       
+      // Check if there are any users, if not create a demo user
+      const users = await this.getUsers();
+      if (users.length === 0) {
+        const demoUser: User = {
+          id: '1',
+          email: 'demo@example.com',
+          password: 'password123',
+          name: 'Demo User',
+          phone: '9876543210',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        
+        await AsyncStorage.setItem('users', JSON.stringify([demoUser]));
+        console.log('Demo user created: demo@example.com / password123');
+      }
+      
       console.log('MongoDB service initialized (mock for Expo Go)');
       this.initialized = true;
     } catch (error) {
@@ -149,9 +189,14 @@ class MongoDBService {
       // Store user data in AsyncStorage
       const users = await this.getUsers();
       
-      // Check if user already exists
+      // Check if user already exists with the same email
       if (users.find(user => user.email === email)) {
-        throw new Error('User already exists');
+        throw new Error('User with this email already exists');
+      }
+      
+      // Check if user already exists with the same phone number (if provided)
+      if (userData.phone && users.find(user => user.phone === userData.phone)) {
+        throw new Error('User with this phone number already exists');
       }
       
       // Create new user
@@ -355,6 +400,123 @@ class MongoDBService {
       };
     } catch (error) {
       console.error('Failed to calculate premium:', error);
+      throw error;
+    }
+  }
+
+  // Get saved premium calculations for the current user
+  async getSavedCalculations(): Promise<SavedCalculation[]> {
+    try {
+      await this.initialize();
+      
+      // Get current user
+      const currentUserJson = await AsyncStorage.getItem('currentUser');
+      if (!currentUserJson) {
+        throw new Error('No user is currently logged in');
+      }
+      
+      const currentUser = JSON.parse(currentUserJson);
+      
+      // Get all saved calculations
+      const savedCalcsJson = await AsyncStorage.getItem('savedCalculations');
+      if (!savedCalcsJson) {
+        return [];
+      }
+      
+      const allCalculations: SavedCalculation[] = JSON.parse(savedCalcsJson);
+      
+      // Filter calculations for current user
+      return allCalculations.filter(calc => calc.userId === currentUser.id);
+    } catch (error) {
+      console.error('Failed to get saved calculations:', error);
+      throw error;
+    }
+  }
+
+  // Save a premium calculation
+  async savePremiumCalculation(calculationData: Omit<SavedCalculation, 'id' | 'createdAt'>): Promise<SavedCalculation> {
+    try {
+      await this.initialize();
+      
+      // Get current user
+      const currentUserJson = await AsyncStorage.getItem('currentUser');
+      if (!currentUserJson) {
+        throw new Error('No user is currently logged in');
+      }
+      
+      const currentUser = JSON.parse(currentUserJson);
+      
+      // Get all saved calculations
+      const savedCalcsJson = await AsyncStorage.getItem('savedCalculations');
+      const allCalculations: SavedCalculation[] = savedCalcsJson ? JSON.parse(savedCalcsJson) : [];
+      
+      // Filter calculations for current user
+      const userCalculations = allCalculations.filter(calc => calc.userId === currentUser.id);
+      
+      // Check if user has reached the maximum number of saved calculations
+      if (userCalculations.length >= MAX_SAVED_PREMIUMS) {
+        throw new Error(`You can only save up to ${MAX_SAVED_PREMIUMS} premium calculations. Please delete some before saving more.`);
+      }
+      
+      // Create new calculation
+      const newCalculation: SavedCalculation = {
+        ...calculationData,
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+      };
+      
+      // Add to all calculations
+      allCalculations.push(newCalculation);
+      
+      // Save to AsyncStorage
+      await AsyncStorage.setItem('savedCalculations', JSON.stringify(allCalculations));
+      
+      return newCalculation;
+    } catch (error) {
+      console.error('Failed to save premium calculation:', error);
+      throw error;
+    }
+  }
+
+  // Delete a saved premium calculation
+  async deleteSavedCalculation(calculationId: string): Promise<boolean> {
+    try {
+      await this.initialize();
+      
+      // Get current user
+      const currentUserJson = await AsyncStorage.getItem('currentUser');
+      if (!currentUserJson) {
+        throw new Error('No user is currently logged in');
+      }
+      
+      const currentUser = JSON.parse(currentUserJson);
+      
+      // Get all saved calculations
+      const savedCalcsJson = await AsyncStorage.getItem('savedCalculations');
+      if (!savedCalcsJson) {
+        return false;
+      }
+      
+      const allCalculations: SavedCalculation[] = JSON.parse(savedCalcsJson);
+      
+      // Find calculation to delete
+      const calculationIndex = allCalculations.findIndex(
+        calc => calc.id === calculationId && calc.userId === currentUser.id
+      );
+      
+      if (calculationIndex === -1) {
+        return false;
+      }
+      
+      // Remove calculation
+      allCalculations.splice(calculationIndex, 1);
+      
+      // Save updated calculations
+      await AsyncStorage.setItem('savedCalculations', JSON.stringify(allCalculations));
+      
+      return true;
+    } catch (error) {
+      console.error('Failed to delete saved calculation:', error);
       throw error;
     }
   }

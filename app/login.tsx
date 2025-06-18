@@ -3,9 +3,10 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Checkbox, Surface, TextInput } from 'react-native-paper';
+import AuthGuard from './components/AuthGuard';
 import mongoDBService from './services/mongodb';
 
 export default function LoginScreen() {
@@ -16,6 +17,23 @@ export default function LoginScreen() {
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Load remembered email if available
+  useEffect(() => {
+    const loadRememberedEmail = async () => {
+      try {
+        const rememberedEmail = await AsyncStorage.getItem('rememberedEmail');
+        if (rememberedEmail) {
+          setEmail(rememberedEmail);
+          setRememberMe(true);
+        }
+      } catch (error) {
+        console.error('Error loading remembered email:', error);
+      }
+    };
+
+    loadRememberedEmail();
+  }, []);
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -51,124 +69,149 @@ export default function LoginScreen() {
 
   const handleSignUp = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    router.push('signup');
+    router.push('/signup');
   };
 
   const togglePasswordVisibility = () => {
     setPasswordVisible(!passwordVisible);
   };
 
-  return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-    >
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <LinearGradient
-          colors={['#4F6CFF', '#6E8AFF']}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <Image 
-            source={require('../assets/images/icon.png')} 
-            style={styles.logo} 
-            resizeMode="contain"
-          />
-          <Text style={styles.title}>PolicyPrime</Text>
-          <Text style={styles.subtitle}>Secure your future with us</Text>
-        </LinearGradient>
+  const fillDemoCredentials = () => {
+    setEmail('demo@example.com');
+    setPassword('password123');
+  };
 
-        <Surface style={styles.formContainer}>
-          <Text style={styles.formTitle}>Login</Text>
-          
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
-          
-          <TextInput
-            label="Email or Phone"
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-            mode="outlined"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            textContentType="emailAddress"
-          />
-          
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            mode="outlined"
-            secureTextEntry={!passwordVisible}
-            right={
-              <TextInput.Icon 
-                icon={passwordVisible ? "eye-off" : "eye"} 
-                onPress={togglePasswordVisibility} 
-              />
-            }
-          />
-          
-          <View style={styles.rememberContainer}>
-            <View style={styles.checkboxContainer}>
-              <Checkbox
-                status={rememberMe ? 'checked' : 'unchecked'}
-                onPress={() => setRememberMe(!rememberMe)}
-                color="#4F6CFF"
-              />
-              <Text style={styles.rememberText}>Remember Me</Text>
+  return (
+    <AuthGuard redirectIfAuth={true}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <LinearGradient
+            colors={['#4F6CFF', '#6E8AFF']}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Image 
+              source={require('../assets/images/icon.png')} 
+              style={styles.logo} 
+              resizeMode="contain"
+            />
+            <Text style={styles.title}>PolicyPrime</Text>
+            <Text style={styles.subtitle}>Secure your future with us</Text>
+          </LinearGradient>
+
+          <Surface style={styles.formContainer}>
+            <Text style={styles.formTitle}>Login</Text>
+            
+            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            
+            <TextInput
+              label="Email or Phone"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+            />
+            
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              style={styles.input}
+              mode="outlined"
+              secureTextEntry={!passwordVisible}
+              right={
+                <TextInput.Icon 
+                  icon={passwordVisible ? "eye-off" : "eye"} 
+                  onPress={togglePasswordVisibility} 
+                />
+              }
+            />
+            
+            <View style={styles.rememberContainer}>
+              <View style={styles.checkboxContainer}>
+                <Checkbox
+                  status={rememberMe ? 'checked' : 'unchecked'}
+                  onPress={() => setRememberMe(!rememberMe)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.rememberText}>Remember Me</Text>
+              </View>
+              
+              <TouchableOpacity>
+                <Text style={styles.forgotText}>Forgot Password?</Text>
+              </TouchableOpacity>
             </View>
             
-            <TouchableOpacity>
-              <Text style={styles.forgotText}>Forgot Password?</Text>
-            </TouchableOpacity>
-          </View>
-          
-          <Button
-            mode="contained"
-            onPress={handleLogin}
-            style={styles.loginButton}
-            labelStyle={styles.buttonLabel}
-            loading={isLoading}
-            disabled={isLoading}
-          >
-            Login
-          </Button>
-          
-          <View style={styles.divider}>
-            <View style={styles.dividerLine} />
-            <Text style={styles.dividerText}>OR</Text>
-            <View style={styles.dividerLine} />
-          </View>
-          
-          <Button
-            mode="outlined"
-            onPress={() => router.replace('/')}
-            style={styles.skipButton}
-            labelStyle={styles.skipButtonLabel}
-          >
-            Continue as Guest
-          </Button>
-          
-          <View style={styles.signupContainer}>
-            <Text style={styles.signupText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={handleSignUp}>
-              <Text style={styles.signupLink}>Sign Up</Text>
-            </TouchableOpacity>
-          </View>
-        </Surface>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Button
+              mode="contained"
+              onPress={handleLogin}
+              style={styles.loginButton}
+              labelStyle={styles.buttonLabel}
+              loading={isLoading}
+              disabled={isLoading}
+            >
+              Login
+            </Button>
+            
+            <View style={styles.divider}>
+              <View style={styles.dividerLine} />
+              <Text style={styles.dividerText}>OR</Text>
+              <View style={styles.dividerLine} />
+            </View>
+            
+            <Button
+              mode="outlined"
+              onPress={() => router.replace('/')}
+              style={styles.skipButton}
+              labelStyle={styles.skipButtonLabel}
+            >
+              Continue as Guest
+            </Button>
+            
+            <View style={styles.signupContainer}>
+              <Text style={styles.signupText}>Don't have an account? </Text>
+              <TouchableOpacity onPress={handleSignUp}>
+                <Text style={styles.signupLink}>Sign Up</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.demoContainer}>
+              <Text style={styles.demoTitle}>Demo Credentials</Text>
+              <Text style={styles.demoText}>Email: demo@example.com</Text>
+              <Text style={styles.demoText}>Password: password123</Text>
+              <TouchableOpacity 
+                style={styles.demoButton}
+                onPress={fillDemoCredentials}
+              >
+                <Text style={styles.demoButtonText}>Fill Demo Credentials</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthGuard>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#121212',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#121212',
   },
   scrollContent: {
@@ -237,7 +280,7 @@ const styles = StyleSheet.create({
     color: '#4F6CFF',
   },
   loginButton: {
-    borderRadius: 30,
+    borderRadius: 8,
     paddingVertical: 6,
     backgroundColor: '#4F6CFF',
   },
@@ -249,7 +292,7 @@ const styles = StyleSheet.create({
   divider: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 20,
+    marginVertical: 24,
   },
   dividerLine: {
     flex: 1,
@@ -257,21 +300,21 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   dividerText: {
-    color: 'rgba(255, 255, 255, 0.6)',
-    paddingHorizontal: 10,
+    color: 'rgba(255, 255, 255, 0.5)',
+    paddingHorizontal: 16,
   },
   skipButton: {
-    borderRadius: 30,
+    borderRadius: 8,
+    paddingVertical: 6,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-    borderWidth: 1,
   },
   skipButtonLabel: {
-    color: '#FFFFFF',
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   signupContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 24,
   },
   signupText: {
     color: 'rgba(255, 255, 255, 0.7)',
@@ -280,4 +323,33 @@ const styles = StyleSheet.create({
     color: '#4F6CFF',
     fontWeight: '600',
   },
-}); 
+  demoContainer: {
+    marginTop: 24,
+    padding: 16,
+    backgroundColor: 'rgba(79, 108, 255, 0.1)',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  demoTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#4F6CFF',
+    marginBottom: 8,
+  },
+  demoText: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    marginBottom: 4,
+  },
+  demoButton: {
+    marginTop: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    backgroundColor: 'rgba(79, 108, 255, 0.3)',
+    borderRadius: 6,
+  },
+  demoButtonText: {
+    color: '#4F6CFF',
+    fontWeight: '600',
+  },
+});
+ 

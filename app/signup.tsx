@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Surface, TextInput } from 'react-native-paper';
+import AuthGuard from './components/AuthGuard';
 import mongoDBService from './services/mongodb';
 
 export default function SignupScreen() {
@@ -127,122 +128,124 @@ export default function SignupScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
-    >
-      <StatusBar style="light" />
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <LinearGradient
-          colors={['#4F6CFF', '#6E8AFF']}
-          style={styles.headerGradient}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <TouchableOpacity 
-            style={styles.backButton}
-            onPress={() => router.back()}
+    <AuthGuard redirectIfAuth={true}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+      >
+        <StatusBar style="light" />
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <LinearGradient
+            colors={['#4F6CFF', '#6E8AFF']}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.backButtonText}>← Back</Text>
-          </TouchableOpacity>
-          
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join PolicyPrime today</Text>
-        </LinearGradient>
-
-        <Surface style={styles.formContainer}>
-          {errors.general ? <Text style={styles.errorText}>{errors.general}</Text> : null}
-          
-          <TextInput
-            label="Full Name"
-            value={name}
-            onChangeText={setName}
-            style={styles.input}
-            mode="outlined"
-            error={!!errors.name}
-          />
-          {errors.name ? <Text style={styles.fieldError}>{errors.name}</Text> : null}
-          
-          <TextInput
-            label="Email Address"
-            value={email}
-            onChangeText={setEmail}
-            style={styles.input}
-            mode="outlined"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            textContentType="emailAddress"
-            error={!!errors.email}
-          />
-          {errors.email ? <Text style={styles.fieldError}>{errors.email}</Text> : null}
-          
-          <TextInput
-            label="Phone Number (Optional)"
-            value={phone}
-            onChangeText={setPhone}
-            style={styles.input}
-            mode="outlined"
-            keyboardType="phone-pad"
-            error={!!errors.phone}
-          />
-          {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
-          
-          <TextInput
-            label="Password"
-            value={password}
-            onChangeText={setPassword}
-            style={styles.input}
-            mode="outlined"
-            secureTextEntry={!passwordVisible}
-            error={!!errors.password}
-            right={
-              <TextInput.Icon 
-                icon={passwordVisible ? "eye-off" : "eye"} 
-                onPress={togglePasswordVisibility} 
-              />
-            }
-          />
-          {errors.password ? <Text style={styles.fieldError}>{errors.password}</Text> : null}
-          
-          <TextInput
-            label="Confirm Password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            style={styles.input}
-            mode="outlined"
-            secureTextEntry={!confirmPasswordVisible}
-            error={!!errors.confirmPassword}
-            right={
-              <TextInput.Icon 
-                icon={confirmPasswordVisible ? "eye-off" : "eye"} 
-                onPress={toggleConfirmPasswordVisibility} 
-              />
-            }
-          />
-          {errors.confirmPassword ? <Text style={styles.fieldError}>{errors.confirmPassword}</Text> : null}
-          
-          <Button
-            mode="contained"
-            onPress={handleSignup}
-            style={styles.signupButton}
-            labelStyle={styles.buttonLabel}
-            loading={isLoading}
-            disabled={isLoading}
-          >
-            Create Account
-          </Button>
-          
-          <View style={styles.loginContainer}>
-            <Text style={styles.loginText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('login')}>
-              <Text style={styles.loginLink}>Login</Text>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <Text style={styles.backButtonText}>← Back</Text>
             </TouchableOpacity>
-          </View>
-        </Surface>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            
+            <Text style={styles.title}>Create Account</Text>
+            <Text style={styles.subtitle}>Join PolicyPrime today</Text>
+          </LinearGradient>
+
+          <Surface style={styles.formContainer}>
+            {errors.general ? <Text style={styles.errorText}>{errors.general}</Text> : null}
+            
+            <TextInput
+              label="Full Name"
+              value={name}
+              onChangeText={setName}
+              style={styles.input}
+              mode="outlined"
+              error={!!errors.name}
+            />
+            {errors.name ? <Text style={styles.fieldError}>{errors.name}</Text> : null}
+            
+            <TextInput
+              label="Email Address"
+              value={email}
+              onChangeText={setEmail}
+              style={styles.input}
+              mode="outlined"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              textContentType="emailAddress"
+              error={!!errors.email}
+            />
+            {errors.email ? <Text style={styles.fieldError}>{errors.email}</Text> : null}
+            
+            <TextInput
+              label="Phone Number (Optional)"
+              value={phone}
+              onChangeText={setPhone}
+              style={styles.input}
+              mode="outlined"
+              keyboardType="phone-pad"
+              error={!!errors.phone}
+            />
+            {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
+            
+            <TextInput
+              label="Password"
+              value={password}
+              onChangeText={setPassword}
+              style={styles.input}
+              mode="outlined"
+              secureTextEntry={!passwordVisible}
+              error={!!errors.password}
+              right={
+                <TextInput.Icon 
+                  icon={passwordVisible ? "eye-off" : "eye"} 
+                  onPress={togglePasswordVisibility} 
+                />
+              }
+            />
+            {errors.password ? <Text style={styles.fieldError}>{errors.password}</Text> : null}
+            
+            <TextInput
+              label="Confirm Password"
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
+              style={styles.input}
+              mode="outlined"
+              secureTextEntry={!confirmPasswordVisible}
+              error={!!errors.confirmPassword}
+              right={
+                <TextInput.Icon 
+                  icon={confirmPasswordVisible ? "eye-off" : "eye"} 
+                  onPress={toggleConfirmPasswordVisibility} 
+                />
+              }
+            />
+            {errors.confirmPassword ? <Text style={styles.fieldError}>{errors.confirmPassword}</Text> : null}
+            
+            <Button
+              mode="contained"
+              onPress={handleSignup}
+              style={styles.signupButton}
+              labelStyle={styles.buttonLabel}
+              loading={isLoading}
+              disabled={isLoading}
+            >
+              Create Account
+            </Button>
+            
+            <View style={styles.loginContainer}>
+              <Text style={styles.loginText}>Already have an account? </Text>
+              <TouchableOpacity onPress={() => router.push('/login')}>
+                <Text style={styles.loginLink}>Login</Text>
+              </TouchableOpacity>
+            </View>
+          </Surface>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </AuthGuard>
   );
 }
 
@@ -260,7 +263,6 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
-    position: 'relative',
   },
   backButton: {
     position: 'absolute',
@@ -276,6 +278,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     color: '#FFFFFF',
+    marginTop: 20,
     marginBottom: 8,
   },
   subtitle: {
@@ -295,17 +298,18 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   input: {
-    marginBottom: 4,
+    marginBottom: 8,
     backgroundColor: 'transparent',
   },
   fieldError: {
     color: '#CF6679',
     fontSize: 12,
     marginBottom: 12,
+    marginTop: -4,
     marginLeft: 8,
   },
   signupButton: {
-    borderRadius: 30,
+    borderRadius: 8,
     paddingVertical: 6,
     backgroundColor: '#4F6CFF',
     marginTop: 16,
@@ -318,7 +322,7 @@ const styles = StyleSheet.create({
   loginContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
-    marginTop: 20,
+    marginTop: 24,
   },
   loginText: {
     color: 'rgba(255, 255, 255, 0.7)',

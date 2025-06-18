@@ -1,47 +1,49 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Avatar, Button, Divider, List, Surface, Switch } from 'react-native-paper';
+import AuthGuard from './components/AuthGuard';
+import mongoDBService from './services/mongodb';
+
+// Define User type
+type User = {
+  id: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  [key: string]: any;
+};
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userName, setUserName] = useState('');
   const [userEmail, setUserEmail] = useState('');
+  const [user, setUser] = useState<User | null>(null);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [darkModeEnabled, setDarkModeEnabled] = useState(true);
 
   useEffect(() => {
-    checkLoginStatus();
+    loadUserData();
   }, []);
 
-  const checkLoginStatus = async () => {
+  const loadUserData = async () => {
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
+      // Use MongoDB service to get user data
+      const status = await mongoDBService.checkLoginStatus();
       
-      if (userToken) {
-        setIsLoggedIn(true);
-        // In a real app, you would fetch user data from MongoDB
-        // For demo purposes, we'll use mock data
-        setUserName('John Doe');
-        setUserEmail('john.doe@example.com');
-      } else {
-        setIsLoggedIn(false);
+      if (status.user) {
+        // Set user data from the logged in user
+        setUser(status.user);
+        setUserName(status.user.name || 'User');
+        setUserEmail(status.user.email);
       }
     } catch (error) {
-      console.error('Error checking login status:', error);
+      console.error('Error loading user data:', error);
     }
-  };
-
-  const handleLogin = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    router.push('login');
   };
 
   const handleLogout = async () => {
@@ -59,9 +61,8 @@ export default function ProfileScreen() {
           text: 'Logout',
           onPress: async () => {
             try {
-              await SecureStore.deleteItemAsync('userToken');
-              await AsyncStorage.removeItem('userToken');
-              setIsLoggedIn(false);
+              // Use MongoDB service to logout
+              await mongoDBService.logoutUser();
               
               // Navigate to home screen
               router.replace('/');
@@ -90,207 +91,181 @@ export default function ProfileScreen() {
     setDarkModeEnabled(!darkModeEnabled);
   };
 
-  const renderLoginPrompt = () => (
-    <Surface style={styles.loginPromptContainer}>
-      <Avatar.Icon size={80} icon="account" style={styles.guestAvatar} />
-      <Text style={styles.guestTitle}>Guest User</Text>
-      <Text style={styles.guestMessage}>
-        Please log in to access your profile and manage your account settings.
-      </Text>
-      <Button
-        mode="contained"
-        onPress={handleLogin}
-        style={styles.loginButton}
-        labelStyle={styles.buttonLabel}
-      >
-        Login
-      </Button>
-    </Surface>
-  );
-
-  const renderProfile = () => (
-    <ScrollView style={styles.profileContainer}>
-      <Surface style={styles.profileCard}>
-        <View style={styles.profileHeader}>
-          <Avatar.Text 
-            size={80} 
-            label={userName.split(' ').map(name => name[0]).join('')} 
-            style={styles.avatar} 
-          />
-          <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>{userName}</Text>
-            <Text style={styles.profileEmail}>{userEmail}</Text>
-          </View>
-        </View>
-        
-        <Button
-          mode="outlined"
-          onPress={() => router.push('edit-profile')}
-          style={styles.editProfileButton}
-          labelStyle={styles.editProfileLabel}
-          icon="pencil"
-        >
-          Edit Profile
-        </Button>
-      </Surface>
-      
-      <Surface style={styles.settingsCard}>
-        <Text style={styles.settingsTitle}>Account Settings</Text>
-        
-        <List.Item
-          title="Personal Information"
-          description="Update your personal details"
-          left={props => <List.Icon {...props} icon="account-details" color="#4F6CFF" />}
-          right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('personal-info')}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="Security"
-          description="Password and authentication"
-          left={props => <List.Icon {...props} icon="shield-account" color="#4F6CFF" />}
-          right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('security')}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="Notifications"
-          description="Manage your notification preferences"
-          left={props => <List.Icon {...props} icon="bell" color="#4F6CFF" />}
-          right={() => (
-            <Switch
-              value={notificationsEnabled}
-              onValueChange={toggleNotifications}
-              color="#4F6CFF"
-            />
-          )}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="Biometric Login"
-          description="Use fingerprint or face recognition"
-          left={props => <List.Icon {...props} icon="fingerprint" color="#4F6CFF" />}
-          right={() => (
-            <Switch
-              value={biometricEnabled}
-              onValueChange={toggleBiometric}
-              color="#4F6CFF"
-            />
-          )}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="Dark Mode"
-          description="Toggle dark/light theme"
-          left={props => <List.Icon {...props} icon="theme-light-dark" color="#4F6CFF" />}
-          right={() => (
-            <Switch
-              value={darkModeEnabled}
-              onValueChange={toggleDarkMode}
-              color="#4F6CFF"
-            />
-          )}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-      </Surface>
-      
-      <Surface style={styles.supportCard}>
-        <Text style={styles.settingsTitle}>Support</Text>
-        
-        <List.Item
-          title="Help Center"
-          description="FAQs and support resources"
-          left={props => <List.Icon {...props} icon="help-circle" color="#4F6CFF" />}
-          right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('help')}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="Contact Us"
-          description="Get in touch with our support team"
-          left={props => <List.Icon {...props} icon="message" color="#4F6CFF" />}
-          right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('contact')}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-        
-        <Divider style={styles.divider} />
-        
-        <List.Item
-          title="About"
-          description="App version and information"
-          left={props => <List.Icon {...props} icon="information" color="#4F6CFF" />}
-          right={props => <List.Icon {...props} icon="chevron-right" />}
-          onPress={() => router.push('about')}
-          style={styles.listItem}
-          titleStyle={styles.listItemTitle}
-          descriptionStyle={styles.listItemDescription}
-        />
-      </Surface>
-      
-      <Button
-        mode="contained"
-        onPress={handleLogout}
-        style={styles.logoutButton}
-        labelStyle={styles.logoutLabel}
-        icon="logout"
-      >
-        Logout
-      </Button>
-      
-      <View style={styles.versionContainer}>
-        <Text style={styles.versionText}>PolicyPrime v1.0.0</Text>
-      </View>
-    </ScrollView>
-  );
-
   return (
-    <View style={styles.container}>
-      <StatusBar style="light" />
-      
-      <LinearGradient
-        colors={['#4F6CFF', '#6E8AFF']}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-      >
-        <Text style={styles.headerTitle}>Profile</Text>
-        {isLoggedIn && (
-          <Text style={styles.headerSubtitle}>Manage your account</Text>
-        )}
-      </LinearGradient>
-      
-      {isLoggedIn ? renderProfile() : renderLoginPrompt()}
-    </View>
+    <AuthGuard requireAuth={true}>
+      <View style={styles.container}>
+        <StatusBar style="light" />
+        <LinearGradient
+          colors={['#4F6CFF', '#6E8AFF']}
+          style={styles.headerGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Text style={styles.headerTitle}>My Profile</Text>
+        </LinearGradient>
+        
+        <ScrollView style={styles.profileContainer}>
+          <Surface style={styles.profileCard}>
+            <View style={styles.profileHeader}>
+              <Avatar.Text 
+                size={80} 
+                label={(userName && userName.charAt(0)) || 'U'} 
+                style={styles.avatar} 
+              />
+              <View style={styles.profileInfo}>
+                <Text style={styles.profileName}>{userName}</Text>
+                <Text style={styles.profileEmail}>{userEmail}</Text>
+              </View>
+            </View>
+            
+            <Button
+              mode="outlined"
+              onPress={() => Alert.alert('Feature Coming Soon', 'Edit profile functionality will be available in the next update.')}
+              style={styles.editProfileButton}
+              labelStyle={styles.editProfileLabel}
+              icon="pencil"
+            >
+              Edit Profile
+            </Button>
+          </Surface>
+          
+          <Surface style={styles.settingsCard}>
+            <Text style={styles.settingsTitle}>Account Settings</Text>
+            
+            <List.Item
+              title="Personal Information"
+              description="Update your personal details"
+              left={props => <List.Icon {...props} icon="account-details" color="#4F6CFF" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => Alert.alert('Feature Coming Soon', 'This functionality will be available in the next update.')}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Security"
+              description="Password and authentication"
+              left={props => <List.Icon {...props} icon="shield-account" color="#4F6CFF" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => Alert.alert('Feature Coming Soon', 'This functionality will be available in the next update.')}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Notifications"
+              description="Manage your notification preferences"
+              left={props => <List.Icon {...props} icon="bell" color="#4F6CFF" />}
+              right={() => (
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={toggleNotifications}
+                  color="#4F6CFF"
+                />
+              )}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Biometric Login"
+              description="Use fingerprint or face recognition"
+              left={props => <List.Icon {...props} icon="fingerprint" color="#4F6CFF" />}
+              right={() => (
+                <Switch
+                  value={biometricEnabled}
+                  onValueChange={toggleBiometric}
+                  color="#4F6CFF"
+                />
+              )}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Dark Mode"
+              description="Toggle dark/light theme"
+              left={props => <List.Icon {...props} icon="theme-light-dark" color="#4F6CFF" />}
+              right={() => (
+                <Switch
+                  value={darkModeEnabled}
+                  onValueChange={toggleDarkMode}
+                  color="#4F6CFF"
+                />
+              )}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+          </Surface>
+          
+          <Surface style={styles.supportCard}>
+            <Text style={styles.settingsTitle}>Support</Text>
+            
+            <List.Item
+              title="Help Center"
+              description="FAQs and support resources"
+              left={props => <List.Icon {...props} icon="help-circle" color="#4F6CFF" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => Alert.alert('Feature Coming Soon', 'This functionality will be available in the next update.')}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Contact Us"
+              description="Get in touch with our team"
+              left={props => <List.Icon {...props} icon="email" color="#4F6CFF" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => Alert.alert('Feature Coming Soon', 'This functionality will be available in the next update.')}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+            
+            <Divider style={styles.divider} />
+            
+            <List.Item
+              title="Privacy Policy"
+              description="Read our privacy policy"
+              left={props => <List.Icon {...props} icon="shield-lock" color="#4F6CFF" />}
+              right={props => <List.Icon {...props} icon="chevron-right" />}
+              onPress={() => Alert.alert('Feature Coming Soon', 'This functionality will be available in the next update.')}
+              style={styles.listItem}
+              titleStyle={styles.listItemTitle}
+              descriptionStyle={styles.listItemDescription}
+            />
+          </Surface>
+          
+          <Button
+            mode="contained"
+            onPress={handleLogout}
+            style={styles.logoutButton}
+            labelStyle={styles.logoutButtonLabel}
+            icon="logout"
+          >
+            Logout
+          </Button>
+          
+          <Text style={styles.versionText}>PolicyPrime v1.0.0</Text>
+        </ScrollView>
+      </View>
+    </AuthGuard>
   );
 }
 
@@ -299,7 +274,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#121212',
   },
-  header: {
+  headerGradient: {
     paddingTop: 60,
     paddingBottom: 20,
     paddingHorizontal: 20,
@@ -311,44 +286,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
-  loginPromptContainer: {
-    margin: 20,
-    padding: 30,
-    borderRadius: 12,
-    backgroundColor: '#1E1E1E',
-    alignItems: 'center',
-  },
-  guestAvatar: {
-    backgroundColor: 'rgba(79, 108, 255, 0.2)',
-    marginBottom: 16,
-  },
-  guestTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  guestMessage: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  loginButton: {
-    borderRadius: 30,
-    paddingHorizontal: 32,
-    backgroundColor: '#4F6CFF',
-  },
-  buttonLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
   },
   profileContainer: {
     flex: 1,
@@ -425,17 +362,14 @@ const styles = StyleSheet.create({
     marginBottom: 24,
     backgroundColor: '#CF6679',
   },
-  logoutLabel: {
+  logoutButtonLabel: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '700',
   },
-  versionContainer: {
-    alignItems: 'center',
-    marginBottom: 24,
-  },
   versionText: {
     color: 'rgba(255, 255, 255, 0.5)',
     fontSize: 12,
+    alignSelf: 'center',
   },
 }); 

@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Dimensions, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Animated, Dimensions, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button } from 'react-native-paper';
 import mongoDBService from './services/mongodb';
 
@@ -22,6 +23,27 @@ const WelcomeScreen = React.memo(() => {
   const skipButtonOpacity = useRef(new Animated.Value(0)).current;
   const screenPosition = useRef(new Animated.Value(0)).current;
   const popupOpacity = useRef(new Animated.Value(0)).current;
+  const titleOpacity = useRef(new Animated.Value(0)).current;
+  const descriptionOpacity = useRef(new Animated.Value(0)).current;
+  const pulsing = useRef(new Animated.Value(1)).current;
+  
+  // Start pulsing animation
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulsing, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulsing, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, [pulsing]);
   
   // Animation sequences
   const startLogoAnimation = useCallback(() => {
@@ -38,6 +60,22 @@ const WelcomeScreen = React.memo(() => {
       }),
     ]);
   }, [logoOpacity, logoScale]);
+  
+  const startTitleAnimation = useCallback(() => {
+    return Animated.sequence([
+      Animated.delay(500),
+      Animated.timing(titleOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(descriptionOpacity, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]);
+  }, [titleOpacity, descriptionOpacity]);
   
   const startButtonAnimation = useCallback(() => {
     return Animated.parallel([
@@ -65,9 +103,9 @@ const WelcomeScreen = React.memo(() => {
   // Check login status only once when component mounts
   useEffect(() => {
     let isMounted = true;
-    let homeTimeout = null;
-    let popupTimeout = null;
-    let buttonTimeout = null;
+    let homeTimeout: ReturnType<typeof setTimeout> | null = null;
+    let popupTimeout: ReturnType<typeof setTimeout> | null = null;
+    let buttonTimeout: ReturnType<typeof setTimeout> | null = null;
     
     const checkLogin = async () => {
       try {
@@ -77,6 +115,7 @@ const WelcomeScreen = React.memo(() => {
         
         // Start logo animation
         startLogoAnimation().start();
+        startTitleAnimation().start();
         
         if (isLoggedIn) {
           // User is logged in, navigate to home after animation
@@ -128,7 +167,7 @@ const WelcomeScreen = React.memo(() => {
       if (popupTimeout) clearTimeout(popupTimeout);
       if (buttonTimeout) clearTimeout(buttonTimeout);
     };
-  }, [startLogoAnimation, startButtonAnimation, startPopupAnimation, router]);
+  }, [startLogoAnimation, startTitleAnimation, startButtonAnimation, startPopupAnimation, router]);
 
   const handleLogin = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -152,78 +191,112 @@ const WelcomeScreen = React.memo(() => {
     <View style={styles.container}>
       <StatusBar style="light" />
       
-      <Animated.View 
-        style={[
-          styles.content,
-          { 
-            opacity: 1,
-            transform: [{ translateY: screenPosition }]
-          }
-        ]}
+      <LinearGradient
+        colors={['#2A3267', '#4F6CFF', '#1E1E1E']}
+        style={styles.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <Animated.Image 
-          source={require('../assets/images/icon.png')} 
+        <Animated.View 
           style={[
-            styles.logo,
+            styles.content,
             { 
-              opacity: logoOpacity,
-              transform: [{ scale: logoScale }]
+              opacity: 1,
+              transform: [{ translateY: screenPosition }]
             }
-          ]} 
-          resizeMode="contain"
-        />
-        
-        {tokenExpired && checkComplete && (
-          <Animated.View 
+          ]}
+        >
+          <Animated.View
             style={[
-              styles.popup,
-              { opacity: popupOpacity }
+              styles.logoContainer,
+              {
+                opacity: logoOpacity,
+                transform: [
+                  { scale: logoScale },
+                  { scale: pulsing }
+                ]
+              }
             ]}
           >
-            <Text style={styles.popupTitle}>Logged Out</Text>
-            <Text style={styles.popupMessage}>Your session has expired. Please login again.</Text>
-            <Button
-              mode="contained"
-              onPress={handleLogin}
-              style={styles.popupButton}
-              labelStyle={styles.buttonLabel}
-            >
-              Login
-            </Button>
+            <Image 
+              source={require('../assets/images/icon.png')} 
+              style={styles.logo}
+              resizeMode="contain"
+            />
           </Animated.View>
-        )}
-        
-        {!isLoading && !tokenExpired && checkComplete && (
-          <>
+          
+          <Animated.Text style={[styles.appTitle, { opacity: titleOpacity }]}>
+            PolicyPrime
+          </Animated.Text>
+          
+          <Animated.Text style={[styles.appDescription, { opacity: descriptionOpacity }]}>
+            Your one-stop solution for managing LIC insurance policies
+          </Animated.Text>
+          
+          {tokenExpired && checkComplete && (
             <Animated.View 
               style={[
-                styles.skipButtonContainer,
-                { opacity: skipButtonOpacity }
+                styles.popup,
+                { opacity: popupOpacity }
               ]}
             >
-              <TouchableOpacity onPress={handleSkip}>
-                <Text style={styles.skipButtonText}>Skip</Text>
-              </TouchableOpacity>
-            </Animated.View>
-            
-            <Animated.View 
-              style={[
-                styles.loginButtonContainer,
-                { opacity: buttonOpacity }
-              ]}
-            >
+              <Text style={styles.popupTitle}>Logged Out</Text>
+              <Text style={styles.popupMessage}>Your session has expired. Please login again.</Text>
               <Button
                 mode="contained"
                 onPress={handleLogin}
-                style={styles.loginButton}
+                style={styles.popupButton}
                 labelStyle={styles.buttonLabel}
+                icon="login"
               >
                 Login
               </Button>
             </Animated.View>
-          </>
-        )}
-      </Animated.View>
+          )}
+          
+          {!isLoading && !tokenExpired && checkComplete && (
+            <>
+              <Animated.View 
+                style={[
+                  styles.skipButtonContainer,
+                  { opacity: skipButtonOpacity }
+                ]}
+              >
+                <TouchableOpacity onPress={handleSkip}>
+                  <Text style={styles.skipButtonText}>Skip</Text>
+                </TouchableOpacity>
+              </Animated.View>
+              
+              <Animated.View 
+                style={[
+                  styles.loginButtonContainer,
+                  { opacity: buttonOpacity }
+                ]}
+              >
+                <Button
+                  mode="contained"
+                  onPress={handleLogin}
+                  style={styles.loginButton}
+                  labelStyle={styles.buttonLabel}
+                  icon="login"
+                >
+                  Login
+                </Button>
+                
+                <Button
+                  mode="outlined"
+                  onPress={handleSkip}
+                  style={styles.guestButton}
+                  labelStyle={styles.guestButtonLabel}
+                  icon="account"
+                >
+                  Continue as Guest
+                </Button>
+              </Animated.View>
+            </>
+          )}
+        </Animated.View>
+      </LinearGradient>
     </View>
   );
 });
@@ -234,16 +307,49 @@ export default WelcomeScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#121212',
+  },
+  gradient: {
+    flex: 1,
+    width: '100%',
+    height: '100%',
   },
   content: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 30,
   },
-  logo: {
+  logoContainer: {
     width: 150,
     height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 30,
+    shadowColor: '#4F6CFF',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  logo: {
+    width: 120,
+    height: 120,
+  },
+  appTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  appDescription: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 24,
   },
   skipButtonContainer: {
     position: 'absolute',
@@ -258,28 +364,47 @@ const styles = StyleSheet.create({
   loginButtonContainer: {
     position: 'absolute',
     bottom: 60,
-    width: '80%',
+    width: '90%',
   },
   loginButton: {
     borderRadius: 30,
     paddingVertical: 8,
     backgroundColor: '#4F6CFF',
+    marginBottom: 15,
+    elevation: 5,
+  },
+  guestButton: {
+    borderRadius: 30,
+    paddingVertical: 8,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    borderWidth: 1,
   },
   buttonLabel: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: 0.5,
   },
+  guestButtonLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: '#FFFFFF',
+  },
   popup: {
     backgroundColor: 'rgba(30, 30, 30, 0.9)',
     borderRadius: 12,
     padding: 24,
-    width: '80%',
+    width: '90%',
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 5,
+    elevation: 5,
   },
   popupTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     marginBottom: 12,
   },
@@ -288,6 +413,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlign: 'center',
     marginBottom: 20,
+    lineHeight: 24,
   },
   popupButton: {
     borderRadius: 30,

@@ -1,11 +1,12 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Avatar, Button, Paragraph, Surface, Title } from 'react-native-paper';
+import mongoDBService from './services/mongodb';
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -17,6 +18,13 @@ export default function HomeScreen() {
     checkIfFirstLaunch();
     checkLoginStatus();
   }, []);
+
+  // Use useFocusEffect to check login status when the screen is focused
+  useFocusEffect(
+    useCallback(() => {
+      checkLoginStatus();
+    }, [])
+  );
 
   const checkIfFirstLaunch = async () => {
     try {
@@ -35,10 +43,11 @@ export default function HomeScreen() {
 
   const checkLoginStatus = async () => {
     try {
-      const userToken = await AsyncStorage.getItem('userToken');
-      setIsLoggedIn(!!userToken);
+      const status = await mongoDBService.checkLoginStatus();
+      setIsLoggedIn(status.isLoggedIn);
     } catch (error) {
       console.error('Error checking login status:', error);
+      setIsLoggedIn(false);
     }
   };
 
@@ -71,7 +80,7 @@ export default function HomeScreen() {
   ];
 
   const renderOnboarding = () => {
-    return (
+  return (
       <View style={styles.onboardingContainer}>
         <StatusBar style="light" />
         <View style={styles.skipContainer}>
@@ -92,7 +101,7 @@ export default function HomeScreen() {
         
         <View style={styles.paginationContainer}>
           {onboardingData.map((_, index) => (
-            <View 
+    <View
               key={index} 
               style={[
                 styles.paginationDot, 
@@ -129,8 +138,8 @@ export default function HomeScreen() {
             </Button>
           )}
         </View>
-      </View>
-    );
+    </View>
+  );
   };
 
   const renderHomeContent = () => {
@@ -204,28 +213,21 @@ export default function HomeScreen() {
         <View style={styles.quickLinksContainer}>
           <Title style={styles.sectionTitle}>Quick Links</Title>
           <View style={styles.quickLinksGrid}>
-            <TouchableOpacity style={styles.quickLinkItem} onPress={() => router.push('/about')}>
+            <TouchableOpacity style={styles.quickLinkItem}>
               <View style={styles.quickLinkIcon}>
                 <Text style={styles.iconText}>ℹ️</Text>
               </View>
               <Text style={styles.quickLinkText}>About Us</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickLinkItem} onPress={() => router.push('/contact')}>
+            <TouchableOpacity style={styles.quickLinkItem}>
               <View style={styles.quickLinkIcon}>
                 <Text style={styles.iconText}>📞</Text>
               </View>
               <Text style={styles.quickLinkText}>Contact Us</Text>
             </TouchableOpacity>
             
-            <TouchableOpacity style={styles.quickLinkItem} onPress={() => router.push('/calculator')}>
-              <View style={styles.quickLinkIcon}>
-                <Text style={styles.iconText}>🧮</Text>
-              </View>
-              <Text style={styles.quickLinkText}>Premium Calculator</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity style={styles.quickLinkItem} onPress={() => router.push('/faq')}>
+            <TouchableOpacity style={styles.quickLinkItem}>
               <View style={styles.quickLinkIcon}>
                 <Text style={styles.iconText}>❓</Text>
               </View>
