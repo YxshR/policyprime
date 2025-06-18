@@ -6,7 +6,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Divider, Paragraph, Snackbar, Surface, TextInput, Title } from 'react-native-paper';
+import { ActivityIndicator, Button, Checkbox, Divider, Paragraph, Snackbar, Surface, TextInput, Title } from 'react-native-paper';
 import mongoDBService from './services/mongodb';
 
 // Define types
@@ -22,6 +22,12 @@ type CalculationResult = {
   premium: number;
   frequency: string;
   totalAnnual: number;
+  adAndDb?: boolean;
+  ageExtra?: boolean;
+  requiredMedicalReports?: boolean;
+  taxSaved?: boolean;
+  totalApproximatePaidPremium?: boolean;
+  maturity?: boolean;
 };
 
 type Policy = {
@@ -53,10 +59,24 @@ export default function CalculatorScreen() {
   const [term, setTerm] = useState('10');
   const [paymentFrequency, setPaymentFrequency] = useState('annual');
   const [calculationName, setCalculationName] = useState('');
+  
+  // Checkbox fields for additional options
+  const [adAndDb, setAdAndDb] = useState(false);
+  const [ageExtra, setAgeExtra] = useState(false);
+  const [requiredMedicalReports, setRequiredMedicalReports] = useState(false);
+  const [taxSaved, setTaxSaved] = useState(false);
+  const [totalApproximatePaidPremium, setTotalApproximatePaidPremium] = useState(false);
+  const [maturity, setMaturity] = useState(false);
 
   useEffect(() => {
     checkLoginStatus();
     fetchPolicyDetails();
+    
+    // Set a default birth date for someone who is 40 years old
+    const defaultDate = new Date();
+    defaultDate.setFullYear(defaultDate.getFullYear() - 40);
+    setBirthDate(defaultDate);
+    setAge('40');
   }, [policyId, categoryId]);
 
   const checkLoginStatus = async () => {
@@ -268,10 +288,46 @@ export default function CalculatorScreen() {
       
       premium -= rebate;
       
+      // Apply additional premium adjustments based on selected options
+      if (adAndDb) {
+        // Add Accidental Death and Disability Benefit premium (approximately 1% of sum assured)
+        premium += sumAssuredValue * 0.01;
+      }
+      
+      if (ageExtra) {
+        // Add age extra premium (approximately 2% extra for older ages)
+        if (ageInYears > 50) {
+          premium += premium * 0.02;
+        }
+      }
+      
+      if (requiredMedicalReports) {
+        // No direct premium impact but would be required for higher sum assured
+        // This is just for display purposes
+      }
+      
+      if (taxSaved) {
+        // This is for display purposes - actual tax savings would be calculated separately
+      }
+      
+      if (totalApproximatePaidPremium) {
+        // This is for display purposes - shows the total premium paid
+      }
+      
+      if (maturity) {
+        // This is for display purposes - shows the maturity value
+      }
+      
       setResult({
         premium: Math.round(premium),
         frequency: 'Single Premium',
         totalAnnual: Math.round(premium),
+        adAndDb,
+        ageExtra,
+        requiredMedicalReports,
+        taxSaved,
+        totalApproximatePaidPremium,
+        maturity
       });
       
       setCalculating(false);
@@ -320,6 +376,12 @@ export default function CalculatorScreen() {
         policyId: policyId as string || '',
         categoryId: categoryId as string || '',
         policyName: policy?.name || 'Unknown Policy',
+        adAndDb,
+        ageExtra,
+        requiredMedicalReports,
+        taxSaved,
+        totalApproximatePaidPremium,
+        maturity
       };
       
       await mongoDBService.savePremiumCalculation(calculationData);
@@ -405,13 +467,24 @@ export default function CalculatorScreen() {
             </Paragraph>
             
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Date of Birth</Text>
+              <Text style={styles.label}>Name</Text>
+              <TextInput
+                style={styles.input}
+                mode="outlined"
+                placeholder="Enter Name"
+              />
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Age*</Text>
               <TouchableOpacity 
                 style={styles.datePickerButton} 
                 onPress={() => setShowDatePicker(true)}
               >
                 <Text style={styles.datePickerButtonText}>
-                  {birthDate.toLocaleDateString()} ({calculateAge(birthDate)} years)
+                  {calculateAge(birthDate) > 0 ? 
+                    `${calculateAge(birthDate)} years (${birthDate.toLocaleDateString()})` : 
+                    "Enter Your Birthdate"}
                 </Text>
               </TouchableOpacity>
               
@@ -422,74 +495,17 @@ export default function CalculatorScreen() {
                   display="default"
                   onChange={handleDateChange}
                   maximumDate={new Date()}
+                  minimumDate={new Date(1950, 0, 1)}
                 />
               )}
               
               <Text style={styles.ageNote}>
-                Age must be between 30 days and 65 years
+                30 days to 65 years
               </Text>
             </View>
             
             <View style={styles.formGroup}>
-              <Text style={styles.label}>Gender</Text>
-              <View style={styles.radioGroup}>
-                <TouchableOpacity
-                  style={[
-                    styles.radioButton,
-                    gender === 'male' && styles.radioButtonActive
-                  ]}
-                  onPress={() => setGender('male')}
-                >
-                  <Text
-                    style={[
-                      styles.radioText,
-                      gender === 'male' && styles.radioTextActive
-                    ]}
-                  >
-                    Male
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.radioButton,
-                    gender === 'female' && styles.radioButtonActive
-                  ]}
-                  onPress={() => setGender('female')}
-                >
-                  <Text
-                    style={[
-                      styles.radioText,
-                      gender === 'female' && styles.radioTextActive
-                    ]}
-                  >
-                    Female
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Sum Assured</Text>
-              <TextInput
-                style={styles.input}
-                mode="outlined"
-                value={sumAssured}
-                onChangeText={(value) => {
-                  // Allow any numeric value without minimum restriction
-                  if (value === '' || !isNaN(parseInt(value, 10))) {
-                    setSumAssured(value);
-                  }
-                }}
-                keyboardType="numeric"
-                left={<TextInput.Affix text="₹" />}
-              />
-              <Text style={styles.sumAssuredNote}>
-                Enter any amount for sum assured
-              </Text>
-            </View>
-            
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Policy Term</Text>
+              <Text style={styles.label}>Term*</Text>
               <View style={styles.sliderContainer}>
                 <Slider
                   style={styles.slider}
@@ -502,7 +518,82 @@ export default function CalculatorScreen() {
                   maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
                   thumbTintColor="#4F6CFF"
                 />
-                <Text style={styles.sliderValue}>{term} years</Text>
+                <Text style={styles.sliderValue}>{term} to 25</Text>
+              </View>
+            </View>
+            
+            <View style={styles.formGroup}>
+              <Text style={styles.label}>Sum Assured*</Text>
+              <TextInput
+                style={styles.input}
+                mode="outlined"
+                value={sumAssured}
+                placeholder="Min 1,00,000"
+                onChangeText={(value) => {
+                  // Allow any numeric value without minimum restriction
+                  if (value === '' || !isNaN(parseInt(value, 10))) {
+                    setSumAssured(value);
+                  }
+                }}
+                keyboardType="numeric"
+                left={<TextInput.Affix text="₹" />}
+              />
+            </View>
+            
+            {/* Additional options as checkboxes */}
+            <View style={styles.checkboxContainer}>
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={adAndDb ? 'checked' : 'unchecked'}
+                  onPress={() => setAdAndDb(!adAndDb)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>AD and DB</Text>
+              </View>
+              
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={ageExtra ? 'checked' : 'unchecked'}
+                  onPress={() => setAgeExtra(!ageExtra)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>Age Extra</Text>
+              </View>
+              
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={requiredMedicalReports ? 'checked' : 'unchecked'}
+                  onPress={() => setRequiredMedicalReports(!requiredMedicalReports)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>Required Medical Reports</Text>
+              </View>
+              
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={taxSaved ? 'checked' : 'unchecked'}
+                  onPress={() => setTaxSaved(!taxSaved)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>Tax Saved</Text>
+              </View>
+              
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={totalApproximatePaidPremium ? 'checked' : 'unchecked'}
+                  onPress={() => setTotalApproximatePaidPremium(!totalApproximatePaidPremium)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>Total Approximate Paid Premium</Text>
+              </View>
+              
+              <View style={styles.checkboxRow}>
+                <Checkbox
+                  status={maturity ? 'checked' : 'unchecked'}
+                  onPress={() => setMaturity(!maturity)}
+                  color="#4F6CFF"
+                />
+                <Text style={styles.checkboxLabel}>Maturity</Text>
               </View>
             </View>
             
@@ -514,7 +605,7 @@ export default function CalculatorScreen() {
               loading={calculating}
               disabled={calculating}
             >
-              Calculate Premium
+              CALCULATE
             </Button>
           </Surface>
           
@@ -541,6 +632,48 @@ export default function CalculatorScreen() {
                 <Text style={styles.resultLabel}>Policy Term:</Text>
                 <Text style={styles.resultValue}>{term} years</Text>
               </View>
+              
+              {result.adAndDb && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>AD and DB:</Text>
+                  <Text style={styles.resultValue}>Included</Text>
+                </View>
+              )}
+              
+              {result.ageExtra && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>Age Extra:</Text>
+                  <Text style={styles.resultValue}>Included</Text>
+                </View>
+              )}
+              
+              {result.requiredMedicalReports && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>Required Medical Reports:</Text>
+                  <Text style={styles.resultValue}>Included</Text>
+                </View>
+              )}
+              
+              {result.taxSaved && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>Tax Saved:</Text>
+                  <Text style={styles.resultValue}>Applicable</Text>
+                </View>
+              )}
+              
+              {result.totalApproximatePaidPremium && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>Total Approximate Paid Premium:</Text>
+                  <Text style={styles.resultValue}>{formatCurrency(result.premium)}</Text>
+                </View>
+              )}
+              
+              {result.maturity && (
+                <View style={styles.resultDetail}>
+                  <Text style={styles.resultLabel}>Maturity Value:</Text>
+                  <Text style={styles.resultValue}>{formatCurrency(parseInt(sumAssured) * 1.5)}</Text>
+                </View>
+              )}
               
               <TextInput
                 label="Save as"
@@ -915,5 +1048,18 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginTop: 10,
     backgroundColor: '#4F6CFF',
+  },
+  checkboxContainer: {
+    marginBottom: 20,
+  },
+  checkboxRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  checkboxLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    marginLeft: 8,
   },
 }); 
