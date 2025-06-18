@@ -4,9 +4,9 @@ import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Button, Checkbox, Divider, Paragraph, Snackbar, Surface, TextInput, Title } from 'react-native-paper';
+import React, { useEffect, useState } from 'react';
+import { KeyboardAvoidingView, Platform, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Button, Checkbox, Paragraph, Snackbar, Surface, TextInput, Title } from 'react-native-paper';
 import mongoDBService from './services/mongodb';
 
 // Define types
@@ -20,6 +20,8 @@ type User = {
 
 type CalculationResult = {
   premium: number;
+  premiumWithGst?: number;
+  gstAmount?: number;
   frequency: string;
   totalAnnual: number;
   adAndDb?: boolean;
@@ -49,6 +51,8 @@ export default function CalculatorScreen() {
   const [snackbarVisible, setSnackbarVisible] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [isSinglePremiumEndowmentPlan, setIsSinglePremiumEndowmentPlan] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [category, setCategory] = useState('');
   
   // Form fields
   const [birthDate, setBirthDate] = useState(new Date());
@@ -69,14 +73,35 @@ export default function CalculatorScreen() {
   const [maturity, setMaturity] = useState(false);
 
   useEffect(() => {
-    checkLoginStatus();
-    fetchPolicyDetails();
+    const checkUser = async () => {
+      try {
+        const status = await mongoDBService.checkLoginStatus();
+        if (status.isLoggedIn && status.user) {
+          setUser(status.user);
+        }
+      } catch (error) {
+        console.error('Error checking user status:', error);
+      }
+    };
+    checkUser();
+  }, []);
+
+  useEffect(() => {
+    const initializeCalculator = async () => {
+      await checkLoginStatus();
+      await fetchPolicyDetails();
+      
+      // Set a default birth date for someone who is 40 years old
+      const defaultDate = new Date();
+      defaultDate.setFullYear(defaultDate.getFullYear() - 40);
+      setBirthDate(defaultDate);
+      setAge('40');
+      
+      setLoading(false);
+    };
     
-    // Set a default birth date for someone who is 40 years old
-    const defaultDate = new Date();
-    defaultDate.setFullYear(defaultDate.getFullYear() - 40);
-    setBirthDate(defaultDate);
-    setAge('40');
+    setLoading(true);
+    initializeCalculator();
   }, [policyId, categoryId]);
 
   const checkLoginStatus = async () => {
@@ -184,165 +209,81 @@ export default function CalculatorScreen() {
       return;
     }
 
-    // Only allow calculations for Single Premium Endowment Plan
-    if (!isSinglePremiumEndowmentPlan) {
-      setSnackbarMessage("Currently, only LIC's Single Premium Endowment Plan calculator is supported.");
-      setSnackbarVisible(true);
-      return;
-    }
-
-    // Validate age
-    const ageInDays = calculateDaysOld(birthDate);
-    if (ageInDays < 30) {
-      setSnackbarMessage("Age must be at least 30 days.");
-      setSnackbarVisible(true);
-      return;
-    }
-    
-    const ageInYears = calculateAge(birthDate);
-    if (ageInYears > 65) {
-      setSnackbarMessage("Age must not exceed 65 years.");
-      setSnackbarVisible(true);
-      return;
-    }
-
-    // Validate sum assured (only check if it's a valid number)
+    // Validate inputs
     const sumAssuredValue = parseInt(sumAssured, 10);
+    const termValue = parseInt(term, 10);
+    
     if (isNaN(sumAssuredValue) || sumAssuredValue <= 0) {
       setSnackbarMessage("Please enter a valid sum assured amount.");
       setSnackbarVisible(true);
       return;
     }
+    
+    // Check minimum sum assured for Single Premium Endowment Plan
+    if (isSinglePremiumEndowmentPlan && sumAssuredValue < 100000) {
+      setSnackbarMessage("For Single Premium Endowment Plan, sum assured must be at least ₹1,00,000.");
+      setSnackbarVisible(true);
+      return;
+    }
+    
+    if (isNaN(termValue) || termValue <= 0) {
+      setSnackbarMessage("Please enter a valid term.");
+      setSnackbarVisible(true);
+      return;
+    }
 
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setCalculating(true);
-    setResult(null);
-
+    
+    // Calculate premium based on inputs
+    const ageInYears = calculateAge(birthDate);
+    
     setTimeout(() => {
-      const termValue = parseInt(term, 10);
-      
-      // Base premium calculation
-      let premium = 0;
-      
-      // Use the sample premium rates from the brochure for Single Premium Endowment Plan
-      if (termValue === 10) {
-        if (ageInYears <= 10) premium = 77910;
-        else if (ageInYears <= 20) premium = 77985;
-        else if (ageInYears <= 30) premium = 78010;
-        else if (ageInYears <= 40) premium = 78180;
-        else if (ageInYears <= 50) premium = 78800;
-        else if (ageInYears <= 60) premium = 79965;
-        else premium = 80000;
-      } else if (termValue === 15) {
-        if (ageInYears <= 10) premium = 66650;
-        else if (ageInYears <= 20) premium = 66775;
-        else if (ageInYears <= 30) premium = 66865;
-        else if (ageInYears <= 40) premium = 67335;
-        else if (ageInYears <= 50) premium = 68800;
-        else if (ageInYears <= 60) premium = 71405;
-        else premium = 72000;
-      } else if (termValue === 25) {
-        if (ageInYears <= 10) premium = 50005;
-        else if (ageInYears <= 20) premium = 50255;
-        else if (ageInYears <= 30) premium = 50695;
-        else if (ageInYears <= 40) premium = 52340;
-        else if (ageInYears <= 50) premium = 56160;
-        else premium = 58000;
-      } else {
-        // For other terms, interpolate between the known values
-        if (termValue < 10) {
-          premium = 80000; // Higher premium for shorter terms
-        } else if (termValue > 10 && termValue < 15) {
-          const factor = (termValue - 10) / 5;
-          if (ageInYears <= 10) premium = 77910 - factor * (77910 - 66650);
-          else if (ageInYears <= 20) premium = 77985 - factor * (77985 - 66775);
-          else if (ageInYears <= 30) premium = 78010 - factor * (78010 - 66865);
-          else if (ageInYears <= 40) premium = 78180 - factor * (78180 - 67335);
-          else if (ageInYears <= 50) premium = 78800 - factor * (78800 - 68800);
-          else if (ageInYears <= 60) premium = 79965 - factor * (79965 - 71405);
-          else premium = 80000 - factor * (80000 - 72000);
-        } else if (termValue > 15 && termValue < 25) {
-          const factor = (termValue - 15) / 10;
-          if (ageInYears <= 10) premium = 66650 - factor * (66650 - 50005);
-          else if (ageInYears <= 20) premium = 66775 - factor * (66775 - 50255);
-          else if (ageInYears <= 30) premium = 66865 - factor * (66865 - 50695);
-          else if (ageInYears <= 40) premium = 67335 - factor * (67335 - 52340);
-          else if (ageInYears <= 50) premium = 68800 - factor * (68800 - 56160);
-          else if (ageInYears <= 60) premium = 71405 - factor * (71405 - 58000);
-          else premium = 72000 - factor * (72000 - 58000);
+      // Pass checkbox values to calculatePremiumAmount
+      const premiumAmount = calculatePremiumAmount(
+        ageInYears, 
+        gender, 
+        sumAssuredValue, 
+        termValue, 
+        paymentFrequency,
+        {
+          adAndDb,
+          ageExtra,
+          requiredMedicalReports,
+          taxSaved,
+          totalApproximatePaidPremium,
+          maturity
         }
-      }
+      );
       
-      // Scale premium based on sum assured (rates are for 1 lakh)
-      premium = (premium / 100000) * sumAssuredValue;
+      // Calculate GST (4.5% instead of 18%)
+      const gstAmount = premiumAmount * 0.045;
+      const totalAmount = premiumAmount + gstAmount;
       
-      // Apply high sum assured rebate
-      let rebate = 0;
-      if (sumAssuredValue >= 200000 && sumAssuredValue < 300000) {
-        rebate = 0.02 * sumAssuredValue; // 20%o of BSA
-      } else if (sumAssuredValue >= 300000 && sumAssuredValue < 500000) {
-        rebate = 0.03 * sumAssuredValue; // 30%o of BSA
-      } else if (sumAssuredValue >= 500000) {
-        rebate = 0.04 * sumAssuredValue; // 40%o of BSA
-      }
-      
-      premium -= rebate;
-      
-      // Apply additional premium adjustments based on selected options
-      if (adAndDb) {
-        // Add Accidental Death and Disability Benefit premium (approximately 1% of sum assured)
-        premium += sumAssuredValue * 0.01;
-      }
-      
-      if (ageExtra) {
-        // Add age extra premium (approximately 2% extra for older ages)
-        if (ageInYears > 50) {
-          premium += premium * 0.02;
-        }
-      }
-      
-      if (requiredMedicalReports) {
-        // No direct premium impact but would be required for higher sum assured
-        // This is just for display purposes
-      }
-      
-      if (taxSaved) {
-        // This is for display purposes - actual tax savings would be calculated separately
-      }
-      
-      if (totalApproximatePaidPremium) {
-        // This is for display purposes - shows the total premium paid
-      }
-      
-      if (maturity) {
-        // This is for display purposes - shows the maturity value
-      }
-      
-      setResult({
-        premium: Math.round(premium),
-        frequency: 'Single Premium',
-        totalAnnual: Math.round(premium),
+      const calculationResult: CalculationResult = {
+        premium: premiumAmount,
+        premiumWithGst: totalAmount,
+        gstAmount: gstAmount,
+        frequency: paymentFrequency === 'annual' ? 'Annual' : 'Monthly',
+        totalAnnual: paymentFrequency === 'annual' ? totalAmount : totalAmount * 12,
         adAndDb,
         ageExtra,
         requiredMedicalReports,
         taxSaved,
         totalApproximatePaidPremium,
         maturity
-      });
+      };
       
+      setResult(calculationResult);
       setCalculating(false);
-    }, 1000);
+      
+      // Vibrate to indicate completion
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }, 1500);
   };
 
   const saveCalculation = async () => {
-    if (!isSinglePremiumEndowmentPlan) {
-      setSnackbarMessage("Currently, only LIC's Single Premium Endowment Plan calculator is supported.");
-      setSnackbarVisible(true);
-      return;
-    }
-    
-    if (!calculationName.trim()) {
-      setSnackbarMessage('Please enter a name for this calculation');
+    if (!user) {
+      setSnackbarMessage('Please log in to save calculations');
       setSnackbarVisible(true);
       return;
     }
@@ -353,57 +294,37 @@ export default function CalculatorScreen() {
       return;
     }
 
-    // Validate sum assured
-    const sumAssuredValue = parseInt(sumAssured, 10);
-    if (isNaN(sumAssuredValue) || sumAssuredValue <= 0) {
-      setSnackbarMessage("Please enter a valid sum assured amount.");
-      setSnackbarVisible(true);
-      return;
-    }
-
     try {
-      // Save calculation using MongoDB service
-      const ageInYears = calculateAge(birthDate);
-      
       const calculationData = {
-        name: calculationName,
-        userId: user?.id || '',
-        age: ageInYears,
-        gender,
-        sumAssured: sumAssuredValue,
-        term: parseInt(term, 10),
-        result: result,
-        policyId: policyId as string || '',
-        categoryId: categoryId as string || '',
-        policyName: policy?.name || 'Unknown Policy',
-        adAndDb,
-        ageExtra,
-        requiredMedicalReports,
-        taxSaved,
-        totalApproximatePaidPremium,
-        maturity
+        userId: user._id,
+        name: user.name || 'Untitled Calculation',
+        age: calculateAge(birthDate),
+        gender: 'Not Specified', // Add gender field if available in your form
+        sumAssured: parseInt(sumAssured),
+        term: parseInt(term),
+        result: {
+          premium: result.premium,
+          frequency: result.frequency,
+          totalAnnual: result.premium * (result.frequency === 'Monthly' ? 12 : 1)
+        },
+        policyId: policy?.id || '',
+        categoryId: category || '',
+        policyName: policy?.name || 'Custom Policy',
+        adAndDb: result.adAndDb || false,
+        ageExtra: result.ageExtra || false,
+        requiredMedicalReports: result.requiredMedicalReports || false,
+        taxSaved: result.taxSaved || false,
+        totalApproximatePaidPremium: result.totalApproximatePaidPremium || false,
+        maturity: result.maturity || false
       };
-      
+
       await mongoDBService.savePremiumCalculation(calculationData);
-      
       setSnackbarMessage('Calculation saved successfully');
       setSnackbarVisible(true);
-      setCalculationName('');
-      
-      // Vibrate to confirm save
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      console.error('Failed to save calculation:', error);
-      
-      // Check if it's the max limit error
-      if (error instanceof Error && error.message.includes('can only save up to')) {
-        setSnackbarMessage(error.message);
-      } else {
-        setSnackbarMessage('Failed to save calculation');
-      }
-      
+      console.error('Error saving calculation:', error);
+      setSnackbarMessage('Failed to save calculation');
       setSnackbarVisible(true);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     }
   };
 
@@ -472,6 +393,8 @@ export default function CalculatorScreen() {
                 style={styles.input}
                 mode="outlined"
                 placeholder="Enter Name"
+                value={calculationName}
+                onChangeText={setCalculationName}
               />
             </View>
             
@@ -611,95 +534,29 @@ export default function CalculatorScreen() {
           
           {result && (
             <Surface style={styles.resultCard}>
-              <Title style={styles.resultTitle}>Premium Estimate</Title>
+              <Title style={styles.resultTitle}>Premium Calculated</Title>
               <View style={styles.premiumContainer}>
                 <Text style={styles.premiumAmount}>
                   {formatCurrency(result.premium)}
+                </Text>
+                <Text style={styles.premiumNote}>
+                  + 4.5% GST ({formatCurrency(result.gstAmount || 0)})
+                </Text>
+                <Text style={styles.premiumTotal}>
+                  Total: {formatCurrency(result.premiumWithGst || result.premium)}
                 </Text>
                 <Text style={styles.premiumFrequency}>
                   {result.frequency}
                 </Text>
               </View>
               
-              <Divider style={styles.divider} />
-              
-              <View style={styles.resultDetail}>
-                <Text style={styles.resultLabel}>Sum Assured:</Text>
-                <Text style={styles.resultValue}>{formatCurrency(sumAssured)}</Text>
-              </View>
-              
-              <View style={styles.resultDetail}>
-                <Text style={styles.resultLabel}>Policy Term:</Text>
-                <Text style={styles.resultValue}>{term} years</Text>
-              </View>
-              
-              {result.adAndDb && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>AD and DB:</Text>
-                  <Text style={styles.resultValue}>Included</Text>
-                </View>
-              )}
-              
-              {result.ageExtra && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>Age Extra:</Text>
-                  <Text style={styles.resultValue}>Included</Text>
-                </View>
-              )}
-              
-              {result.requiredMedicalReports && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>Required Medical Reports:</Text>
-                  <Text style={styles.resultValue}>Included</Text>
-                </View>
-              )}
-              
-              {result.taxSaved && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>Tax Saved:</Text>
-                  <Text style={styles.resultValue}>Applicable</Text>
-                </View>
-              )}
-              
-              {result.totalApproximatePaidPremium && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>Total Approximate Paid Premium:</Text>
-                  <Text style={styles.resultValue}>{formatCurrency(result.premium)}</Text>
-                </View>
-              )}
-              
-              {result.maturity && (
-                <View style={styles.resultDetail}>
-                  <Text style={styles.resultLabel}>Maturity Value:</Text>
-                  <Text style={styles.resultValue}>{formatCurrency(parseInt(sumAssured) * 1.5)}</Text>
-                </View>
-              )}
-              
-              <TextInput
-                label="Save as"
-                value={calculationName}
-                onChangeText={setCalculationName}
-                style={styles.saveInput}
-                mode="outlined"
-                placeholder="Enter a name for this calculation"
-              />
-              
               <Button
                 mode="contained"
-                onPress={saveCalculation}
-                style={styles.saveButton}
+                onPress={showPremiumEstimate}
+                style={styles.viewDetailsButton}
                 labelStyle={styles.buttonLabel}
               >
-                Save Calculation
-              </Button>
-              
-              <Button
-                mode="outlined"
-                onPress={() => router.push('/policies')}
-                style={styles.viewPoliciesButton}
-                labelStyle={styles.buttonLabel}
-              >
-                View All Policies
+                View Full Estimate
               </Button>
             </Surface>
           )}
@@ -723,6 +580,165 @@ export default function CalculatorScreen() {
         </Snackbar>
       </KeyboardAvoidingView>
     );
+  };
+
+  const handleShare = async () => {
+    if (!result) return;
+
+    const message = `Premium Estimate\n\n` +
+      `Name: ${user?.name || 'Not provided'}\n` +
+      `Age: ${calculateAge(birthDate)} years\n` +
+      `Term: ${term} years\n` +
+      `Sum Assured: ${formatCurrency(sumAssured)}\n` +
+      `Premium: ${formatCurrency(result.premium)}\n` +
+      `Approximate Return: ${formatCurrency(parseInt(sumAssured) * 1.5)}\n` +
+      `Maturity Date: ${new Date(new Date().setFullYear(new Date().getFullYear() + parseInt(term))).toLocaleDateString()}`;
+    
+    try {
+      await Share.share({
+        message,
+        title: 'Premium Estimate'
+      });
+    } catch (error) {
+      console.error('Error sharing:', error);
+    }
+  };
+
+  const showPremiumEstimate = () => {
+    if (!result) return;
+    
+    // Create the data object to pass to the results screen
+    const resultData = {
+      // Prioritize the calculationName over the user's name
+      name: calculationName.trim() || user?.name || 'Not provided',
+      age: calculateAge(birthDate),
+      term: term,
+      sumAssured: sumAssured,
+      premium: result.premium,
+      gstAmount: result.gstAmount || 0,
+      premiumWithGst: result.premiumWithGst || (result.premium * 1.045),
+      frequency: result.frequency,
+      approximateReturn: parseInt(sumAssured) * 1.5,
+      maturityDate: new Date(new Date().setFullYear(new Date().getFullYear() + parseInt(term))).toISOString(),
+      adAndDb: result.adAndDb || false,
+      ageExtra: result.ageExtra || false,
+      requiredMedicalReports: result.requiredMedicalReports || false,
+      taxSaved: result.taxSaved || false,
+      totalApproximatePaidPremium: result.totalApproximatePaidPremium || false,
+      maturity: result.maturity || false,
+      policyName: policy?.name || 'Custom Policy'
+    };
+    
+    // Navigate to results screen with data
+    router.push({
+      pathname: '/premium-estimate',
+      params: { data: JSON.stringify(resultData) }
+    });
+  };
+
+  // Update the calculatePremiumAmount function to account for checkbox selections
+  const calculatePremiumAmount = (
+    age: number, 
+    gender: string, 
+    sumAssured: number, 
+    term: number, 
+    paymentFrequency: string,
+    options: {
+      adAndDb: boolean,
+      ageExtra: boolean,
+      requiredMedicalReports: boolean,
+      taxSaved: boolean,
+      totalApproximatePaidPremium: boolean,
+      maturity: boolean
+    }
+  ): number => {
+    // Base premium calculation
+    let premium = 0;
+    
+    // Use the sample premium rates from the brochure for Single Premium Endowment Plan
+    if (term === 10) {
+      if (age <= 10) premium = 77910;
+      else if (age <= 20) premium = 77985;
+      else if (age <= 30) premium = 78010;
+      else if (age <= 40) premium = 78180;
+      else if (age <= 50) premium = 78800;
+      else if (age <= 60) premium = 79965;
+      else premium = 80000;
+    } else if (term === 15) {
+      if (age <= 10) premium = 66650;
+      else if (age <= 20) premium = 66775;
+      else if (age <= 30) premium = 66865;
+      else if (age <= 40) premium = 67335;
+      else if (age <= 50) premium = 68800;
+      else if (age <= 60) premium = 71405;
+      else premium = 72000;
+    } else if (term === 25) {
+      if (age <= 10) premium = 50005;
+      else if (age <= 20) premium = 50255;
+      else if (age <= 30) premium = 50695;
+      else if (age <= 40) premium = 52340;
+      else if (age <= 50) premium = 56160;
+      else premium = 58000;
+    } else {
+      // For other terms, interpolate between the known values
+      if (term < 10) {
+        premium = 80000; // Higher premium for shorter terms
+      } else if (term > 10 && term < 15) {
+        const factor = (term - 10) / 5;
+        if (age <= 10) premium = 77910 - factor * (77910 - 66650);
+        else if (age <= 20) premium = 77985 - factor * (77985 - 66775);
+        else if (age <= 30) premium = 78010 - factor * (78010 - 66865);
+        else if (age <= 40) premium = 78180 - factor * (78180 - 67335);
+        else if (age <= 50) premium = 78800 - factor * (78800 - 68800);
+        else if (age <= 60) premium = 79965 - factor * (79965 - 71405);
+        else premium = 80000 - factor * (80000 - 72000);
+      } else if (term > 15 && term < 25) {
+        const factor = (term - 15) / 10;
+        if (age <= 10) premium = 66650 - factor * (66650 - 50005);
+        else if (age <= 20) premium = 66775 - factor * (66775 - 50255);
+        else if (age <= 30) premium = 66865 - factor * (66865 - 50695);
+        else if (age <= 40) premium = 67335 - factor * (67335 - 52340);
+        else if (age <= 50) premium = 68800 - factor * (68800 - 56160);
+        else if (age <= 60) premium = 71405 - factor * (71405 - 58000);
+        else premium = 72000 - factor * (72000 - 58000);
+      }
+    }
+    
+    // Scale premium based on sum assured (rates are for 1 lakh)
+    premium = (premium / 100000) * sumAssured;
+    
+    // Apply high sum assured rebate
+    let rebate = 0;
+    if (sumAssured >= 200000 && sumAssured < 300000) {
+      rebate = 0.02 * sumAssured; // 20%o of BSA
+    } else if (sumAssured >= 300000 && sumAssured < 500000) {
+      rebate = 0.03 * sumAssured; // 30%o of BSA
+    } else if (sumAssured >= 500000) {
+      rebate = 0.04 * sumAssured; // 40%o of BSA
+    }
+    
+    premium -= rebate;
+    
+    // Apply additional premium adjustments based on selected options
+    if (options.adAndDb) {
+      // Add Accidental Death and Disability Benefit premium (approximately 1% of sum assured)
+      premium += sumAssured * 0.01;
+    }
+    
+    if (options.ageExtra) {
+      // Add age extra premium (approximately 2% extra for older ages)
+      if (age > 50) {
+        premium += premium * 0.02;
+      }
+    }
+    
+    // Apply payment frequency adjustment
+    if (paymentFrequency === 'monthly') {
+      // Monthly premium is typically slightly higher than annual / 12
+      premium = (premium / 12) * 1.05;
+    }
+    
+    return Math.round(premium);
   };
 
   if (loading) {
@@ -921,6 +937,17 @@ const styles = StyleSheet.create({
     color: '#4F6CFF',
     marginBottom: 4,
   },
+  premiumNote: {
+    fontSize: 14,
+    color: '#AAAAAA',
+    marginTop: 4,
+  },
+  premiumTotal: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#4F6CFF',
+    marginTop: 8,
+  },
   premiumFrequency: {
     fontSize: 16,
     color: 'rgba(255, 255, 255, 0.7)',
@@ -1061,5 +1088,26 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     marginLeft: 8,
+  },
+  detailsSection: {
+    marginBottom: 24,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 12,
+  },
+  actionButtons: {
+    marginTop: 24,
+  },
+  shareButton: {
+    marginBottom: 12,
+    backgroundColor: '#4CAF50',
+  },
+  viewDetailsButton: {
+    borderRadius: 8,
+    marginTop: 16,
+    backgroundColor: '#4F6CFF',
   },
 }); 
