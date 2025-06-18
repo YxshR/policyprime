@@ -1,12 +1,11 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Haptics from 'expo-haptics';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { StatusBar } from 'expo-status-bar';
 import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Button, Surface, TextInput } from 'react-native-paper';
+import mongoDBService from './services/mongodb';
 
 export default function SignupScreen() {
   const router = useRouter();
@@ -91,29 +90,27 @@ export default function SignupScreen() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
     try {
-      // In a real app, you would send this data to MongoDB
-      // For demo purposes, we'll simulate a successful signup
+      // Create user data
       const userData = {
         name,
-        email,
         phone,
-        // In a real app, you would hash the password before storing
       };
 
-      // Generate a demo token
-      const userToken = 'demo-token-123';
+      // Register user with MongoDB service
+      await mongoDBService.registerUser(email, password, userData);
       
-      // Store token securely
-      await SecureStore.setItemAsync('userToken', userToken);
-      await AsyncStorage.setItem('userToken', userToken);
+      // Login the user after successful registration
+      const loginResponse = await mongoDBService.loginUser(email, password);
       
-      // Navigate to home screen
-      router.replace('/');
+      if (loginResponse.success) {
+        // Navigate to home screen
+        router.replace('/');
+      }
     } catch (error) {
       console.error('Signup error:', error);
       setErrors({
         ...errors,
-        general: 'Failed to create account. Please try again.',
+        general: error instanceof Error ? error.message : 'Failed to create account. Please try again.',
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {

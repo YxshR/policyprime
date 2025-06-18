@@ -1,9 +1,8 @@
-import { MaterialIcons } from '@expo/vector-icons';
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { useFonts } from 'expo-font';
-import { Tabs } from 'expo-router';
-import { SplashScreen } from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { Slot, Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import React, { useEffect } from 'react';
 import { MD3DarkTheme, PaperProvider, adaptNavigationTheme } from 'react-native-paper';
 
 // Keep the splash screen visible while we fetch resources
@@ -50,53 +49,16 @@ export default function RootLayout() {
   }, [loaded]);
 
   if (!loaded) {
-    return null;
+    return <Slot />;
   }
 
   return (
     <PaperProvider theme={theme}>
       <ThemeProvider value={NavigationDarkTheme}>
-        <Tabs screenOptions={{
-          tabBarActiveTintColor: theme.colors.primary,
-          tabBarInactiveTintColor: '#9E9E9E',
-          tabBarStyle: { backgroundColor: '#1E1E1E', borderTopWidth: 0 },
-          tabBarLabelStyle: { fontFamily: 'SpaceMono-Regular' },
-          headerStyle: { backgroundColor: '#1E1E1E' },
-          headerTintColor: '#FFFFFF',
-        }}>
-          <Tabs.Screen
-            name="index"
-            options={{
-              title: 'Home',
-              tabBarIcon: ({ color }) => <MaterialIcons name="home" size={24} color={color} />,
-              headerShown: false,
-            }}
-          />
-          <Tabs.Screen
-            name="policies"
-            options={{
-              title: 'Policies',
-              tabBarIcon: ({ color }) => <MaterialIcons name="policy" size={24} color={color} />,
-              headerShown: false,
-            }}
-          />
-          <Tabs.Screen
-            name="dashboard"
-            options={{
-              title: 'Dashboard',
-              tabBarIcon: ({ color }) => <MaterialIcons name="dashboard" size={24} color={color} />,
-              headerShown: false,
-            }}
-          />
-          <Tabs.Screen
-            name="profile"
-            options={{
-              title: 'Profile',
-              tabBarIcon: ({ color }) => <MaterialIcons name="person" size={24} color={color} />,
-              headerShown: false,
-            }}
-          />
-        </Tabs>
+        <Stack>
+          <Stack.Screen name="welcome" options={{ headerShown: false }} />
+          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+        </Stack>
       </ThemeProvider>
     </PaperProvider>
   );
